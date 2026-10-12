@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PulseGrid Bengaluru | Hospital Bed Allocation & Emergency Care System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fff1f2',
+              100: '#ffe4e6',
+              500: '#e11d48',
+              600: '#be123c',
+              700: '#9f1239',
+              900: '#4c0519',
+              accent: '#f43f5e',
+              emerald: '#10b981',
+              amber: '#f59e0b',
+              sky: '#0284c7'
+            },
+            dark: {
+              bg: '#090a0f',
+              surface: '#12141d',
+              card: '#181b26',
+              border: '#262a3b',
+              muted: '#64748b'
+            }
+          },
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #090a0f;
+      color: #f1f5f9;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #12141d;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #262a3b;
+      border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #e11d48;
+    }
+    .glow-red {
+      box-shadow: 0 0 20px -5px rgba(225, 29, 72, 0.4);
+    }
+    .glow-emerald {
+      box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.3);
+    }
+    .pulse-ring {
+      position: relative;
+    }
+    .pulse-ring::before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 100%;
+      height: 100%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      border: 2px solid #e11d48;
+      animation: pulse-ring-anim 2s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+    }
+    @keyframes pulse-ring-anim {
+      0% { width: 100%; height: 100%; opacity: 0.8; }
+      100% { width: 220%; height: 220%; opacity: 0; }
+    }
+    @keyframes ecgLine {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    .ecg-path {
+      animation: ecgLine 3s linear infinite;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#090a0f] text-slate-100 antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- TOP APP BAR -->
+  <header class="sticky top-0 z-50 bg-[#090a0f]/90 backdrop-blur-md border-b border-dark-border">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        
+        <!-- Brand Logo -->
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-700 to-brand-500 flex items-center justify-center glow-red">
+            <i data-lucide="activity" class="w-6 h-6 text-white"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="font-extrabold text-xl tracking-tight text-white">PULSE<span class="text-brand-500">GRID</span></span>
+              <span class="text-[10px] uppercase font-bold tracking-widest bg-brand-500/20 text-brand-500 px-2 py-0.5 rounded border border-brand-500/30">BLR Emergency</span>
+            </div>
+            <p class="text-[11px] text-slate-400 font-medium">Bengaluru Emergency Bed Network</p>
+          </div>
+        </div>
+
+        <!-- Mode Toggle Switcher -->
+        <div class="hidden md:flex items-center bg-dark-surface p-1 rounded-xl border border-dark-border">
+          <button id="mode-transit-btn" onclick="setAppMode('transit')" class="px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all bg-brand-600 text-white shadow-sm">
+            <i data-lucide="siren" class="w-3.5 h-3.5"></i>
+            <span>In-Transit Emergency</span>
+          </button>
+          <button id="mode-planned-btn" onclick="setAppMode('planned')" class="px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all text-slate-400 hover:text-white">
+            <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+            <span>Planned Surgery</span>
+          </button>
+        </div>
+
+        <!-- Right Quick Actions -->
+        <div class="flex items-center space-x-3">
+          <button onclick="openCartDrawer()" class="relative p-2 rounded-xl bg-dark-surface border border-dark-border hover:border-brand-500/50 transition-colors text-slate-300 hover:text-white">
+            <i data-lucide="shopping-bag" class="w-5 h-5"></i>
+            <span id="cart-badge" class="absolute -top-1 -right-1 bg-brand-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center hidden">0</span>
+          </button>
+          <div class="h-6 w-px bg-dark-border hidden sm:block"></div>
+          <button onclick="triggerEmergencySOS()" class="bg-gradient-to-r from-red-600 to-brand-600 hover:from-red-500 hover:to-brand-500 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center space-x-2 glow-red transition-all">
+            <i data-lucide="phone-call" class="w-4 h-4 animate-bounce"></i>
+            <span>SOS (108) Sync</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- NAVIGATION TABS BAR -->
+  <nav class="bg-dark-surface/80 border-b border-dark-border backdrop-blur">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex space-x-2 sm:space-x-8 overflow-x-auto custom-scrollbar py-2">
+        <button id="nav-beds" onclick="switchTab('beds')" class="nav-tab active-tab px-3 py-2 rounded-lg text-xs font-bold flex items-center space-x-2 whitespace-nowrap text-brand-500 bg-brand-500/10 border border-brand-500/20">
+          <i data-lucide="bed" class="w-4 h-4"></i>
+          <span>Live Bed Availability</span>
+        </button>
+        <button id="nav-telemetry" onclick="switchTab('telemetry')" class="nav-tab px-3 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 whitespace-nowrap text-slate-400 hover:text-slate-200 hover:bg-dark-card transition-colors">
+          <i data-lucide="navigation" class="w-4 h-4"></i>
+          <span>Ambulance Telemetry & GPS</span>
+        </button>
+        <button id="nav-surgery" onclick="switchTab('surgery')" class="nav-tab px-3 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 whitespace-nowrap text-slate-400 hover:text-slate-200 hover:bg-dark-card transition-colors">
+          <i data-lucide="calendar-check" class="w-4 h-4"></i>
+          <span>Advance Surgical Booking</span>
+        </button>
+        <button id="nav-insurance" onclick="switchTab('insurance')" class="nav-tab px-3 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 whitespace-nowrap text-slate-400 hover:text-slate-200 hover:bg-dark-card transition-colors">
+          <i data-lucide="shield-check" class="w-4 h-4"></i>
+          <span>Cashless Insurance Authorization</span>
+        </button>
+        <button id="nav-supplies" onclick="switchTab('supplies')" class="nav-tab px-3 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 whitespace-nowrap text-slate-400 hover:text-slate-200 hover:bg-dark-card transition-colors">
+          <i data-lucide="box" class="w-4 h-4"></i>
+          <span>Medical & Surgical Store</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- HERO EMERGENCY STATUS BANNER -->
+    <section id="emergency-banner" class="bg-gradient-to-r from-brand-900/40 via-dark-surface to-dark-surface border border-brand-500/30 rounded-2xl p-4 sm:p-6 relative overflow-hidden">
+      <div class="absolute -right-10 -bottom-10 w-60 h-60 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+        <div class="flex items-start space-x-4">
+          <div class="w-12 h-12 rounded-2xl bg-brand-500/20 border border-brand-500/40 flex items-center justify-center shrink-0 mt-1 pulse-ring">
+            <i data-lucide="ambulance" class="w-6 h-6 text-brand-500"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-3">
+              <h2 class="text-lg sm:text-xl font-bold text-white">Emergency Telemetry Status: <span class="text-brand-500">KA-01-EA-9021</span></h2>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-ping"></span> Live Signal
+              </span>
+            </div>
+            <p class="text-xs text-slate-300 mt-1">Patient Triage: <span class="font-semibold text-slate-100">Critical Cardiac Arrest</span> | Target: <span class="font-semibold text-white underline underline-offset-2">Manipal Hospital HAL Road</span> (ETA: <span class="text-brand-500 font-bold">11 Mins</span>)</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-3 self-end md:self-center">
+          <button onclick="switchTab('telemetry')" class="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold transition-all shadow-lg shadow-brand-600/30">
+            View Live Route & Signals
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 1: LIVE BEDS MATRIX -->
+    <section id="tab-beds" class="tab-content space-y-6">
+      
+      <!-- Filters and Search Bar -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="md:col-span-2 relative">
+          <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+          <input type="text" id="hospital-search" onkeyup="filterHospitals()" placeholder="Search Bengaluru hospitals or area (e.g. Indiranagar, Apollo, ICU)..." class="w-full bg-dark-card border border-dark-border rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition-colors">
+        </div>
+        <div>
+          <select id="bed-class-filter" onchange="filterHospitals()" class="w-full bg-dark-card border border-dark-border rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500">
+            <option value="all">All Bed Classes</option>
+            <option value="icu">ICU (Intensive Care Unit)</option>
+            <option value="hdu">HDU (High Dependency Unit)</option>
+            <option value="ccu">CCU (Cardiac Care Unit)</option>
+            <option value="general">General Ward</option>
+          </select>
+        </div>
+        <div>
+          <select id="location-filter" onchange="filterHospitals()" class="w-full bg-dark-card border border-dark-border rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-brand-500">
+            <option value="all">All Bengaluru Zones</option>
+            <option value="central">Central (HAL / Cunningham Rd)</option>
+            <option value="south">South (Bannerghatta / Jayanagar)</option>
+            <option value="north">North (Hebbal / Yelahanka)</option>
+            <option value="east">East (Whitefield / Marathahalli)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Hospital Bed Cards Grid -->
+      <div id="hospital-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- JS dynamically populates hospital cards -->
+      </div>
+    </section>
+
+    <!-- SECTION 2: AMBULANCE TELEMETRY & GPS -->
+    <section id="tab-telemetry" class="tab-content hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <!-- Map & Route Visualizer -->
+        <div class="lg:col-span-2 bg-dark-card border border-dark-border rounded-2xl p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                <i data-lucide="map-pin" class="w-4 h-4 text-brand-500"></i>
+                Real-Time Transit Map (Bengaluru Green Corridor)
+              </h3>
+              <p class="text-xs text-slate-400">Live GPS signal stream from Telemetry Transponder Unit #771</p>
+            </div>
+            <span class="px-2.5 py-1 bg-brand-500/10 text-brand-500 border border-brand-500/30 rounded-lg text-xs font-mono font-bold animate-pulse">
+              GREEN CORRIDOR ACTIVE
+            </span>
+          </div>
+
+          <!-- Simulated Interactive Map Container -->
+          <div class="relative w-full h-80 bg-slate-950 rounded-xl overflow-hidden border border-dark-border flex items-center justify-center">
+            <!-- Simulated Grid Canvas Background -->
+            <svg class="absolute inset-0 w-full h-full opacity-20" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+                  <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#64748b" stroke-width="0.5"/>
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid)" />
+            </svg>
+
+            <!-- Route Path Overlay -->
+            <svg class="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+              <path d="M 80 240 Q 200 120, 380 180 T 680 80" fill="none" stroke="#e11d48" stroke-width="4" stroke-dasharray="8 4"/>
+              <circle cx="80" cy="240" r="8" fill="#e11d48" class="animate-ping"/>
+              <circle cx="80" cy="240" r="6" fill="#e11d48"/>
+              <circle cx="680" cy="80" r="8" fill="#10b981"/>
+            </svg>
+
+            <!-- Marker Labels -->
+            <div class="absolute left-8 bottom-12 bg-dark-surface/90 border border-brand-500/50 p-2 rounded-lg text-[10px] shadow">
+              <p class="font-bold text-white">Ambulance KA-01-EA-9021</p>
+              <p class="text-slate-400">HAL Old Airport Road</p>
+            </div>
+            <div class="absolute right-8 top-12 bg-dark-surface/90 border border-emerald-500/50 p-2 rounded-lg text-[10px] shadow">
+              <p class="font-bold text-emerald-400">Manipal Hospital ER Dock</p>
+              <p class="text-slate-400">Target ETA: 11 mins</p>
+            </div>
+
+            <!-- Signal Indicator Floating Panel -->
+            <div class="absolute top-4 left-4 bg-dark-bg/90 p-3 rounded-xl border border-dark-border backdrop-blur space-y-1">
+              <div class="flex items-center space-x-2 text-xs">
+                <i data-lucide="navigation-2" class="w-3.5 h-3.5 text-brand-500 animate-spin"></i>
+                <span class="text-slate-300">Speed: <strong class="text-white font-mono">68 km/h</strong></span>
+              </div>
+              <div class="flex items-center space-x-2 text-xs">
+                <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-amber-400"></i>
+                <span class="text-slate-300">Signals Cleared: <strong class="text-white font-mono">4/6</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div class="bg-dark-surface p-3 rounded-xl border border-dark-border">
+              <p class="text-[10px] text-slate-400 uppercase font-semibold">Distance Remaining</p>
+              <p class="text-base font-bold text-white font-mono mt-0.5">4.2 km</p>
+            </div>
+            <div class="bg-dark-surface p-3 rounded-xl border border-dark-border">
+              <p class="text-[10px] text-slate-400 uppercase font-semibold">Hospital Assigned</p>
+              <p class="text-xs font-bold text-brand-500 truncate mt-0.5">Manipal HAL Rd</p>
+            </div>
+            <div class="bg-dark-surface p-3 rounded-xl border border-dark-border">
+              <p class="text-[10px] text-slate-400 uppercase font-semibold">Reserved Bed</p>
+              <p class="text-xs font-bold text-emerald-400 mt-0.5">ICU-Bed #04</p>
+            </div>
+            <div class="bg-dark-surface p-3 rounded-xl border border-dark-border">
+              <p class="text-[10px] text-slate-400 uppercase font-semibold">Traffic Signal Sync</p>
+              <p class="text-xs font-bold text-emerald-400 mt-0.5">Auto-Green (On)</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Real-time Patient Telemetry Vitals Panel -->
+        <div class="bg-dark-card border border-dark-border rounded-2xl p-5 space-y-5">
+          <div>
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <i data-lucide="heart-pulse" class="w-4 h-4 text-brand-500"></i>
+              In-Transit Patient Telemetry
+            </h3>
+            <p class="text-xs text-slate-400">Streamed directly to ER Doctor dashboard</p>
+          </div>
+
+          <!-- Live ECG Waveform Animation Canvas -->
+          <div class="bg-slate-950 p-3 rounded-xl border border-dark-border relative overflow-hidden">
+            <div class="flex items-center justify-between text-[10px] text-slate-400 mb-2">
+              <span>ECG LEAD II - 25mm/s</span>
+              <span class="text-emerald-400 font-mono">NORMAL SINUS</span>
+            </div>
+            <div class="w-full h-16 flex items-center relative overflow-hidden">
+              <svg class="w-[200%] h-12 ecg-path" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 500 50" stroke="#10b981" stroke-width="2">
+                <path d="M0,25 L30,25 L35,10 L40,40 L45,5 L50,35 L55,25 L100,25 L130,25 L135,10 L140,40 L145,5 L150,35 L155,25 L200,25 L230,25 L235,10 L240,40 L245,5 L250,35 L255,25 L300,25 L330,25 L335,10 L340,40 L345,5 L350,35 L355,25 L400,25 L430,25 L435,10 L440,40 L445,5 L450,35 L455,25 L500,25" />
+              </svg>
+            </div>
+          </div>
+
+          <!-- Vitals Matrix -->
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-dark-surface p-3 rounded-xl border border-dark-border">
+              <p class="text-[10px] text-slate-400 uppercase font-semibold">Heart Rate (BPM)</p>
+              <div class="flex items-baseline space-x-2 mt-1">
+                <span id="vital-hr" class="text-2xl font-extrabold text-brand-500 font-mono">88</span>
+                <span class="text-[10px] text-slate-500">bpm</span>
+              </div>
+            </div>
+            <div class="bg-dark-surface p-3 rounded-xl border border-dark-border">
+              <p class="text-[10px] text-slate-400 uppercase font-semibold">Blood Oxygen (SpO2)</p>
+              <div class="flex items-baseline space-x-2 mt-1">
+                <span id="vital-spo2" class="text-2xl font-extrabold text-emerald-400 font-mono">97%</span>
+                <span class="text-[10px] text-slate-500">Normal</span>
+              </div>
+            </div>
+            <div class="bg-dark-surface p-3 rounded-xl border border-dark-border">
+              <p class="text-[10px] text-slate-400 uppercase font-semibold">Blood Pressure</p>
+              <div class="flex items-baseline space-x-2 mt-1">
+                <span class="text-lg font-bold text-white font-mono">128/84</span>
+                <span class="text-[10px] text-slate-500">mmHg</span>
+              </div>
+            </div>
+            <div class="bg-dark-surface p-3 rounded-xl border border-dark-border">
+              <p class="text-[10px] text-slate-400 uppercase font-semibold">Resp. Rate</p>
+              <div class="flex items-baseline space-x-2 mt-1">
+                <span class="text-lg font-bold text-white font-mono">18</span>
+                <span class="text-[10px] text-slate-500">rpm</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Oxygen & Defibrillator Equipment Status -->
+          <div class="bg-dark-surface p-3 rounded-xl border border-dark-border space-y-2">
+            <p class="text-xs font-bold text-slate-300">Ambulance Equipment Diagnostics</p>
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-400">O2 Cylinder Pressure</span>
+              <span class="text-emerald-400 font-mono font-bold">180 BAR (Full)</span>
+            </div>
+            <div class="w-full bg-dark-bg h-1.5 rounded-full overflow-hidden">
+              <div class="bg-emerald-500 h-full w-[88%]"></div>
+            </div>
+            <div class="flex items-center justify-between text-xs pt-1">
+              <span class="text-slate-400">Automated External Defibrillator</span>
+              <span class="text-emerald-400 font-semibold">Standby Ready</span>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- SECTION 3: ADVANCE SURGICAL BOOKING -->
+    <section id="tab-surgery" class="tab-content hidden space-y-6">
+      <div class="max-w-4xl mx-auto bg-dark-card border border-dark-border rounded-2xl p-6 space-y-6">
+        
+        <div>
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i data-lucide="calendar" class="w-5 h-5 text-brand-500"></i>
+            Schedule Advance Surgery & Reserve Bed Category
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">Pre-register for elective or scheduled surgical procedures across top Bengaluru hospital suites.</p>
+        </div>
+
+        <form id="surgical-form" onsubmit="handleSurgicalBooking(event)" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Patient Full Name *</label>
+              <input type="text" required placeholder="e.g. Gavin Dmello" class="w-full bg-dark-surface border border-dark-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Phone Number *</label>
+              <input type="tel" required placeholder="+91 98765 43210" class="w-full bg-dark-surface border border-dark-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Select Hospital *</label>
+              <select id="surgery-hospital" required class="w-full bg-dark-surface border border-dark-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500">
+                <option value="Manipal Hospital (HAL Road)">Manipal Hospital (HAL Road)</option>
+                <option value="Apollo Hospitals (Bannerghatta Road)">Apollo Hospitals (Bannerghatta Road)</option>
+                <option value="Fortis Hospital (Cunningham Road)">Fortis Hospital (Cunningham Road)</option>
+                <option value="Aster CMI Hospital (Hebbal)">Aster CMI Hospital (Hebbal)</option>
+                <option value="Narayana Health City (Bommasandra)">Narayana Health City (Bommasandra)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Surgical Speciality / Procedure *</label>
+              <select id="surgery-type" required class="w-full bg-dark-surface border border-dark-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500">
+                <option value="Orthopedic / Knee Replacement">Orthopedic / Knee Replacement</option>
+                <option value="Cardiothoracic Surgery">Cardiothoracic Surgery</option>
+                <option value="General & Laparoscopic">General & Laparoscopic</option>
+                <option value="Neurosurgery">Neurosurgery</option>
+                <option value="Urology & Renal">Urology & Renal</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Surgery Date *</label>
+              <input type="date" required class="w-full bg-dark-surface border border-dark-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1">Bed Class Requirement *</label>
+              <select id="surgery-bed-class" onchange="calculateSurgicalCost()" class="w-full bg-dark-surface border border-dark-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500">
+                <option value="general">General Deluxe Ward (₹2,500 / day)</option>
+                <option value="private">Private AC Suite (₹6,000 / day)</option>
+                <option value="hdu">HDU Post-Op Bed (₹10,000 / day)</option>
+                <option value="icu">ICU Bed Reservation (₹18,000 / day)</option>
+              </select>
+            </div>
+
+          </div>
+
+          <!-- Cost Breakdown & Payment Bar -->
+          <div class="bg-dark-surface border border-dark-border rounded-xl p-4 space-y-3 mt-4">
+            <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Estimated Advance Payment Summary</h4>
+            <div class="flex justify-between text-xs text-slate-400">
+              <span>Surgical Suite Deposit</span>
+              <span id="cost-surgery" class="font-mono text-white">₹25,000</span>
+            </div>
+            <div class="flex justify-between text-xs text-slate-400">
+              <span>Selected Bed Category Fee (3 Days Base)</span>
+              <span id="cost-bed" class="font-mono text-white">₹7,500</span>
+            </div>
+            <div class="flex justify-between text-xs text-slate-400">
+              <span>TPA Insurance Convenience Fee</span>
+              <span class="font-mono text-emerald-400">₹0 (Waived)</span>
+            </div>
+            <div class="border-t border-dark-border pt-2 flex justify-between text-sm font-bold">
+              <span class="text-white">Total Advance Pay Booking Fee</span>
+              <span id="cost-total" class="text-brand-500 font-mono">₹32,500</span>
+            </div>
+          </div>
+
+          <button type="submit" class="w-full py-3 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-500 hover:to-brand-400 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-brand-600/30">
+            Confirm Advance Surgical Bed Reservation & Pay Token
+          </button>
+        </form>
+
+      </div>
+    </section>
+
+    <!-- SECTION 4: CASHLESS INSURANCE AUTHORIZATION -->
+    <section id="tab-insurance" class="tab-content hidden space-y-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Left Claim Status Panel -->
+        <div class="md:col-span-2 bg-dark-card border border-dark-border rounded-2xl p-5 space-y-5">
+          <div>
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+              Instant Cashless Hospitalization Authorization
+            </h3>
+            <p class="text-xs text-slate-400">Verify policy pre-approval across 30+ Health Insurance Providers in Bengaluru</p>
+          </div>
+
+          <form id="insurance-form" onsubmit="verifyInsurancePolicy(event)" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Insurance Provider *</label>
+                <select id="ins-provider" required class="w-full bg-dark-surface border border-dark-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500">
+                  <option value="Star Health Insurance">Star Health & Allied Insurance</option>
+                  <option value="ICICI Lombard Health">ICICI Lombard General Insurance</option>
+                  <option value="Care Health Insurance">Care Health Insurance</option>
+                  <option value="Ayushman Bharat PM-JAY">Ayushman Bharat (PM-JAY)</option>
+                  <option value="HDFC ERGO">HDFC ERGO Health</option>
+                  <option value="Niva Bupa">Niva Bupa Health Insurance</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1">Policy Number / UHID *</label>
+                <input type="text" required placeholder="e.g. SH-99201-88102" class="w-full bg-dark-surface border border-dark-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-500">
+              </div>
+            </div>
+
+            <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all">
+              Verify Cashless Coverage Pre-Approval
+            </button>
+          </form>
+
+          <!-- Result Card (Populated after verification) -->
+          <div id="insurance-result" class="hidden bg-dark-surface border border-emerald-500/30 rounded-xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>
+                <span class="font-bold text-sm text-white">Pre-Authorization Approved</span>
+              </div>
+              <span class="text-xs font-mono bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">TPA-SYNCED</span>
+            </div>
+            <p class="text-xs text-slate-300">Policy Holder: <strong class="text-white">Gavin Dmello</strong> | Cover Limit: <strong class="text-emerald-400">₹7,50,000</strong></p>
+            <p class="text-[11px] text-slate-400">Cashless claim token generated for admission at assigned Bengaluru Empaneled Hospital.</p>
+          </div>
+        </div>
+
+        <!-- Right Side Network Partners -->
+        <div class="bg-dark-card border border-dark-border rounded-2xl p-5 space-y-4">
+          <h4 class="text-xs font-bold text-white uppercase tracking-wider">Supported TPA Partners</h4>
+          <div class="space-y-2 text-xs">
+            <div class="p-2.5 rounded-xl bg-dark-surface border border-dark-border flex items-center justify-between">
+              <span class="text-slate-200">Star Health</span>
+              <span class="text-[10px] text-emerald-400 font-semibold">100% Cashless</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-dark-surface border border-dark-border flex items-center justify-between">
+              <span class="text-slate-200">ICICI Lombard</span>
+              <span class="text-[10px] text-emerald-400 font-semibold">Instant Approval</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-dark-surface border border-dark-border flex items-center justify-between">
+              <span class="text-slate-200">Ayushman Bharat (PM-JAY)</span>
+              <span class="text-[10px] text-emerald-400 font-semibold">Govt. Scheme</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-dark-surface border border-dark-border flex items-center justify-between">
+              <span class="text-slate-200">HDFC ERGO</span>
+              <span class="text-[10px] text-emerald-400 font-semibold">100% Cashless</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- SECTION 5: MEDICAL & SURGICAL SUPPLY STORE -->
+    <section id="tab-supplies" class="tab-content hidden space-y-6">
+      <div>
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="package" class="w-4 h-4 text-brand-500"></i>
+          Surgical & Emergency Medical Supply Portal
+        </h3>
+        <p class="text-xs text-slate-400">Order pre-op sterile kits, orthopedic supplies, and portable equipment direct to your reserved hospital room.</p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="supplies-grid">
+        <!-- JS populates surgical supply items -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- CART SIDE DRAWER -->
+  <div id="cart-drawer" class="fixed inset-y-0 right-0 w-full max-w-sm bg-dark-card border-l border-dark-border z-50 transform translate-x-full transition-transform duration-300 ease-in-out p-5 flex flex-col justify-between shadow-2xl">
+    <div>
+      <div class="flex items-center justify-between border-b border-dark-border pb-3">
+        <h3 class="font-bold text-white text-sm flex items-center gap-2">
+          <i data-lucide="shopping-bag" class="w-4 h-4 text-brand-500"></i>
+          Medical Supply Basket
+        </h3>
+        <button onclick="closeCartDrawer()" class="p-1 rounded-lg hover:bg-dark-surface text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div id="cart-items" class="py-4 space-y-3 overflow-y-auto max-h-[60vh] custom-scrollbar">
+        <!-- Cart Items populate here -->
+        <p class="text-xs text-slate-500 text-center py-8">Your supply basket is empty.</p>
+      </div>
+    </div>
+
+    <div class="border-t border-dark-border pt-4 space-y-3">
+      <div class="flex justify-between text-sm font-bold">
+        <span class="text-slate-300">Total Supply Amount</span>
+        <span id="cart-total-price" class="text-brand-500 font-mono">₹0</span>
+      </div>
+      <button onclick="checkoutSupplies()" class="w-full py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all">
+        Proceed to Hospital Bed Dispatch
+      </button>
+    </div>
+  </div>
+
+  <!-- BOOKING CONFIRMATION MODAL -->
+  <div id="booking-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-dark-card border border-dark-border max-w-md w-full rounded-2xl p-6 space-y-4 relative">
+      <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+
+      <div class="text-center space-y-2">
+        <div class="w-12 h-12 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full flex items-center justify-center mx-auto">
+          <i data-lucide="check" class="w-6 h-6"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white">Hospital Bed Lock Confirmed!</h3>
+        <p class="text-xs text-slate-400">Emergency Admission QR Code and TPA authorization token issued.</p>
+      </div>
+
+      <div class="bg-dark-surface border border-dark-border p-4 rounded-xl space-y-2 text-xs">
+        <div class="flex justify-between">
+          <span class="text-slate-400">Booking Reference:</span>
+          <span id="modal-ref" class="font-mono text-white font-bold">PLG-8921-BLR</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-400">Hospital:</span>
+          <span id="modal-hospital" class="font-semibold text-brand-500">Manipal Hospital</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-400">Bed Category:</span>
+          <span id="modal-bed" class="font-semibold text-white">ICU Bed #04</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-slate-400">Expected Arrival:</span>
+          <span class="text-emerald-400 font-mono">In 11 Minutes</span>
+        </div>
+      </div>
+
+      <!-- QR Code Placeholder -->
+      <div class="bg-white p-3 rounded-xl flex items-center justify-center w-32 h-32 mx-auto">
+        <div class="w-full h-full bg-slate-900 rounded flex items-center justify-center text-[9px] text-slate-300 text-center font-mono p-1">
+          [QR ENCRYPTED TOKEN: PLG-ADMIT-8921]
+        </div>
+      </div>
+
+      <button onclick="closeModal()" class="w-full py-2.5 bg-dark-surface hover:bg-dark-border border border-dark-border text-white text-xs font-bold rounded-xl transition-all">
+        Close & Continue Live Route Tracking
+      </button>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="bg-dark-surface border-t border-dark-border mt-auto py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-xs text-slate-500 space-y-2">
+      <p>PulseGrid Healthcare Systems © 2026. Live Sync connected to Karnataka Health & Family Welfare Network.</p>
+      <p class="text-[10px]">Serving Bengaluru Central, Indiranagar, Whitefield, Bannerghatta, Hebbal, Cunningham Road & Electronic City.</p>
+    </div>
+  </footer>
+
+  <!-- APPLICATION LOGIC JS -->
+  <script>
+    // BENGALURU HOSPITALS DATABASE
+    const HOSPITALS = [
+      {
+        id: 'manipal-hal',
+        name: 'Manipal Hospital',
+        location: 'HAL Old Airport Road, Indiranagar',
+        zone: 'central',
+        dist: '2.4 km',
+        eta: '7 mins',
+        beds: { icu: 8, hdu: 14, ccu: 5, general: 22 },
+        phone: '+91 80 2502 4444',
+        rating: '4.9 ★'
+      },
+      {
+        id: 'apollo-bg',
+        name: 'Apollo Hospitals',
+        location: 'Bannerghatta Road, Jayanagar',
+        zone: 'south',
+        dist: '5.8 km',
+        eta: '14 mins',
+        beds: { icu: 4, hdu: 9, ccu: 3, general: 18 },
+        phone: '+91 80 2630 4050',
+        rating: '4.8 ★'
+      },
+      {
+        id: 'fortis-cunningham',
+        name: 'Fortis Hospital',
+        location: 'Cunningham Road, Vasanth Nagar',
+        zone: 'central',
+        dist: '4.1 km',
+        eta: '11 mins',
+        beds: { icu: 2, hdu: 5, ccu: 2, general: 12 },
+        phone: '+91 80 4199 4444',
+        rating: '4.7 ★'
+      },
+      {
+        id: 'aster-cmi',
+        name: 'Aster CMI Hospital',
+        location: 'Hebbal, Outer Ring Road',
+        zone: 'north',
+        dist: '9.3 km',
+        eta: '22 mins',
+        beds: { icu: 11, hdu: 20, ccu: 8, general: 30 },
+        phone: '+91 80 4342 0100',
+        rating: '4.9 ★'
+      },
+      {
+        id: 'narayana-health',
+        name: 'Narayana Health City',
+        location: 'Bommasandra, Electronic City',
+        zone: 'south',
+        dist: '14.2 km',
+        eta: '28 mins',
+        beds: { icu: 15, hdu: 25, ccu: 10, general: 40 },
+        phone: '+91 80 7122 2222',
+        rating: '4.9 ★'
+      },
+      {
+        id: 'st-johns',
+        name: "St. John's Medical College",
+        location: 'Koramangala 4th Block',
+        zone: 'central',
+        dist: '3.6 km',
+        eta: '10 mins',
+        beds: { icu: 6, hdu: 11, ccu: 4, general: 25 },
+        phone: '+91 80 2206 5000',
+        rating: '4.6 ★'
+      }
+    ];
+
+    // SURGICAL MEDICAL SUPPLIES DATABASE
+    const SUPPLIES = [
+      { id: 1, name: 'Sterile Post-Op Surgical Dress Kit', price: 1250, category: 'Surgical', icon: 'package-check' },
+      { id: 2, name: 'Orthopedic Knee Immobilizer Brace', price: 3400, category: 'Orthopedic', icon: 'shield' },
+      { id: 3, name: 'Medical Grade Oxygen Pulse Oximeter', price: 1850, category: 'Diagnostics', icon: 'activity' },
+      { id: 4, name: 'Portable Suction Machine (Home/Ward)', price: 8900, category: 'Equipment', icon: 'cpu' },
+      { id: 5, name: 'Pre-Surgical Chlorhexidine Wash Solution', price: 450, category: 'Pharma', icon: 'droplet' },
+      { id: 6, name: 'NPWT Wound Vacuum Therapy Dressing', price: 5600, category: 'Surgical', icon: 'heart-pulse' }
+    ];
+
+    let cart = [];
+    let currentAppMode = 'transit';
+
+    // INITIALIZATION
+    document.addEventListener('DOMContentLoaded', () => {
+      lucide.createIcons();
+      renderHospitals(HOSPITALS);
+      renderSupplies();
+      startTelemetrySim();
+    });
+
+    // RENDER HOSPITALS GRID
+    function renderHospitals(list) {
+      const container = document.getElementById('hospital-grid');
+      container.innerHTML = '';
+
+      if (list.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-500 col-span-2 text-center py-8">No hospitals match your criteria.</p>`;
+        return;
+      }
+
+      list.forEach(h => {
+        const card = document.createElement('div');
+        card.className = 'bg-dark-card border border-dark-border hover:border-brand-500/40 rounded-2xl p-5 space-y-4 transition-all hover:shadow-xl hover:shadow-brand-500/5';
+        card.innerHTML = `
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="flex items-center space-x-2">
+                <h3 class="font-bold text-white text-base">${h.name}</h3>
+                <span class="text-xs font-semibold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">${h.rating}</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-brand-500"></i> ${h.location}
+              </p>
+            </div>
+            <div class="text-right">
+              <span class="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg inline-block">
+                ETA ${h.eta}
+              </span>
+              <p class="text-[10px] text-slate-500 mt-1">${h.dist} from ambulance</p>
+            </div>
+          </div>
+
+          <!-- Bed Category Counters -->
+          <div class="grid grid-cols-4 gap-2 pt-2 border-t border-dark-border text-center">
+            <div class="bg-dark-surface p-2 rounded-xl border border-dark-border">
+              <p class="text-[9px] uppercase font-bold text-slate-400">ICU</p>
+              <p class="text-sm font-mono font-extrabold ${h.beds.icu > 0 ? 'text-brand-500' : 'text-slate-600'}">${h.beds.icu} Free</p>
+            </div>
+            <div class="bg-dark-surface p-2 rounded-xl border border-dark-border">
+              <p class="text-[9px] uppercase font-bold text-slate-400">HDU</p>
+              <p class="text-sm font-mono font-extrabold ${h.beds.hdu > 0 ? 'text-emerald-400' : 'text-slate-600'}">${h.beds.hdu} Free</p>
+            </div>
+            <div class="bg-dark-surface p-2 rounded-xl border border-dark-border">
+              <p class="text-[9px] uppercase font-bold text-slate-400">CCU</p>
+              <p class="text-sm font-mono font-extrabold text-amber-400">${h.beds.ccu} Free</p>
+            </div>
+            <div class="bg-dark-surface p-2 rounded-xl border border-dark-border">
+              <p class="text-[9px] uppercase font-bold text-slate-400">General</p>
+              <p class="text-sm font-mono font-extrabold text-slate-200">${h.beds.general} Free</p>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="flex items-center space-x-2 pt-2">
+            <button onclick="quickLockBed('${h.name}', 'ICU')" class="flex-1 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-brand-600/20">
+              Lock ICU Bed Now
+            </button>
+            <button onclick="quickLockBed('${h.name}', 'HDU')" class="px-3 py-2 bg-dark-surface hover:bg-dark-border text-slate-200 border border-dark-border rounded-xl text-xs font-semibold">
+              Reserve HDU
+            </button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+      lucide.createIcons();
+    }
+
+    // FILTER HOSPITALS
+    function filterHospitals() {
+      const search = document.getElementById('hospital-search').value.toLowerCase();
+      const bedClass = document.getElementById('bed-class-filter').value;
+      const zone = document.getElementById('location-filter').value;
+
+      const filtered = HOSPITALS.filter(h => {
+        const matchesSearch = h.name.toLowerCase().includes(search) || h.location.toLowerCase().includes(search);
+        const matchesZone = zone === 'all' || h.zone === zone;
+        const matchesBed = bedClass === 'all' || h.beds[bedClass] > 0;
+        return matchesSearch && matchesZone && matchesBed;
+      });
+
+      renderHospitals(filtered);
+    }
+
+    // TAB SWITCHING
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.nav-tab').forEach(el => {
+        el.classList.remove('text-brand-500', 'bg-brand-500/10', 'border', 'border-brand-500/20');
+        el.classList.add('text-slate-400');
+      });
+
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+      const activeNav = document.getElementById(`nav-${tabId}`);
+      activeNav.classList.remove('text-slate-400');
+      activeNav.classList.add('text-brand-500', 'bg-brand-500/10', 'border', 'border-brand-500/20');
+    }
+
+    // MODE SWITCHER (IN-TRANSIT VS PLANNED)
+    function setAppMode(mode) {
+      currentAppMode = mode;
+      const transitBtn = document.getElementById('mode-transit-btn');
+      const plannedBtn = document.getElementById('mode-planned-btn');
+
+      if (mode === 'transit') {
+        transitBtn.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all bg-brand-600 text-white shadow-sm';
+        plannedBtn.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all text-slate-400 hover:text-white';
+        switchTab('beds');
+      } else {
+        plannedBtn.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all bg-brand-600 text-white shadow-sm';
+        transitBtn.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all text-slate-400 hover:text-white';
+        switchTab('surgery');
+      }
+    }
+
+    // SURGICAL COST CALCULATOR
+    function calculateSurgicalCost() {
+      const bedClass = document.getElementById('surgery-bed-class').value;
+      let bedFee = 7500;
+      if (bedClass === 'private') bedFee = 18000;
+      if (bedClass === 'hdu') bedFee = 30000;
+      if (bedClass === 'icu') bedFee = 54000;
+
+      const total = 25000 + bedFee;
+      document.getElementById('cost-bed').innerText = `₹${bedFee.toLocaleString('en-IN')}`;
+      document.getElementById('cost-total').innerText = `₹${total.toLocaleString('en-IN')}`;
+    }
+
+    // HANDLERS & MODALS
+    function quickLockBed(hospitalName, bedType) {
+      document.getElementById('modal-hospital').innerText = hospitalName;
+      document.getElementById('modal-bed').innerText = `${bedType} Bed Assigned`;
+      document.getElementById('modal-ref').innerText = `PLG-${Math.floor(1000 + Math.random() * 9000)}-BLR`;
+      document.getElementById('booking-modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('booking-modal').classList.add('hidden');
+    }
+
+    function handleSurgicalBooking(e) {
+      e.preventDefault();
+      const hospital = document.getElementById('surgery-hospital').value;
+      const bedClass = document.getElementById('surgery-bed-class').selectedOptions[0].text;
+      quickLockBed(hospital, bedClass);
+    }
+
+    function verifyInsurancePolicy(e) {
+      e.preventDefault();
+      document.getElementById('insurance-result').classList.remove('hidden');
+    }
+
+    function triggerEmergencySOS() {
+      alert("🚨 SOS EMERGENCY TELEMETRY SYNC DISPATCHED!\n\nConnecting to Karnataka Health Dispatch (108). Emergency team notified with live location.");
+    }
+
+    // RENDER MEDICAL SUPPLIES
+    function renderSupplies() {
+      const container = document.getElementById('supplies-grid');
+      container.innerHTML = '';
+
+      SUPPLIES.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'bg-dark-card border border-dark-border rounded-2xl p-4 space-y-3 flex flex-col justify-between';
+        div.innerHTML = `
+          <div class="space-y-2">
+            <div class="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-500 border border-brand-500/20 flex items-center justify-center">
+              <i data-lucide="${item.icon}" class="w-5 h-5"></i>
+            </div>
+            <h4 class="font-bold text-white text-xs">${item.name}</h4>
+            <p class="text-[10px] text-slate-400">Category: ${item.category}</p>
+          </div>
+          <div class="flex items-center justify-between pt-2 border-t border-dark-border">
+            <span class="font-mono font-bold text-sm text-white">₹${item.price.toLocaleString('en-IN')}</span>
+            <button onclick="addToCart(${item.id})" class="px-3 py-1.5 bg-dark-surface hover:bg-brand-600 hover:text-white border border-dark-border text-slate-300 rounded-lg text-xs font-semibold transition-all">
+              + Add to Bed
+            </button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+      lucide.createIcons();
+    }
+
+    // CART MANAGEMENT
+    function addToCart(itemId) {
+      const item = SUPPLIES.find(s => s.id === itemId);
+      cart.push(item);
+      updateCartUI();
+      openCartDrawer();
+    }
+
+    function updateCartUI() {
+      const badge = document.getElementById('cart-badge');
+      const container = document.getElementById('cart-items');
+      const totalEl = document.getElementById('cart-total-price');
+
+      if (cart.length > 0) {
+        badge.innerText = cart.length;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+
+      if (cart.length === 0) {
+        container.innerHTML = `<p class="text-xs text-slate-500 text-center py-8">Your supply basket is empty.</p>`;
+        totalEl.innerText = '₹0';
+        return;
+      }
+
+      let total = 0;
+      container.innerHTML = '';
+      cart.forEach((item, index) => {
+        total += item.price;
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between bg-dark-surface p-2.5 rounded-xl border border-dark-border text-xs';
+        div.innerHTML = `
+          <div>
+            <p class="font-bold text-white">${item.name}</p>
+            <p class="text-brand-500 font-mono">₹${item.price.toLocaleString('en-IN')}</p>
+          </div>
+          <button onclick="removeFromCart(${index})" class="text-slate-500 hover:text-brand-500 p-1">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        `;
+        container.appendChild(div);
+      });
+      totalEl.innerText = `₹${total.toLocaleString('en-IN')}`;
+      lucide.createIcons();
+    }
+
+    function removeFromCart(index) {
+      cart.splice(index, 1);
+      updateCartUI();
+    }
+
+    function openCartDrawer() {
+      document.getElementById('cart-drawer').classList.remove('translate-x-full');
+    }
+
+    function closeCartDrawer() {
+      document.getElementById('cart-drawer').classList.add('translate-x-full');
+    }
+
+    function checkoutSupplies() {
+      if (cart.length === 0) return alert("Your basket is empty.");
+      alert("Medical supplies ordered successfully! Dispatch routed directly to your assigned hospital room.");
+      cart = [];
+      updateCartUI();
+      closeCartDrawer();
+    }
+
+    // TELEMETRY VITALS SIMULATOR
+    function startTelemetrySim() {
+      setInterval(() => {
+        const hr = Math.floor(82 + Math.random() * 12);
+        const spo2 = Math.floor(96 + Math.random() * 3);
+        
+        const hrEl = document.getElementById('vital-hr');
+        const spo2El = document.getElementById('vital-spo2');
+
+        if (hrEl) hrEl.innerText = hr;
+        if (spo2El) spo2El.innerText = `${spo2}%`;
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
